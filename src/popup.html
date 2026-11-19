@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 280px; margin: 0; padding: 14px; color: #1a1a1a; }
+    h1 { font-size: 13px; margin: 0 0 12px; }
+    section + section { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e0e0e0; }
+    label { display: block; margin-bottom: 10px; }
+    .hint { color: #888; font-size: 11px; margin-top: 4px; }
+    input[type=text] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+    button { width: 100%; padding: 8px; background: #1a1a1a; color: #fff; border: 0; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    #status { margin-top: 8px; color: #2a7; min-height: 16px; }
+    #current { margin-top: 4px; color: #888; font-size: 11px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <section>
+    <h1>ALMA 언어 고정</h1>
+    <label>
+      <input type="checkbox" id="almaEnabled"> 언어가 바뀌면 자동으로 되돌리기
+    </label>
+    <label>
+      언어 코드
+      <input type="text" id="almaLocale" list="almaLocales" placeholder="예: ko-KR">
+      <datalist id="almaLocales">
+      <option value="ko-KR"></option>
+      <option value="en-GB"></option>
+      <option value="es-ES"></option>
+      <option value="ja-JP"></option>
+      <option value="zh-CN"></option>
+      <option value="de-DE"></option>
+      <option value="fr-FR"></option>
+      <option value="it-IT"></option>
+      <option value="pt-PT"></option>
+      <option value="nl-NL"></option>
+      <option value="pl-PL"></option>
+      <option value="tr-TR"></option>
+      <option value="el-GR"></option>
+      <option value="ro-RO"></option>
+      <option value="hr-HR"></option>
+      </datalist>
+      <div class="hint">ALMA의 locale 쿠키 값과 같은 형식이어야 합니다 (한국어는 ko-KR).</div>
+    </label>
+    <div id="current"></div>
+  </section>
+  <section>
+    <h1>BICO 도우미</h1>
+    <label>
+      <input type="checkbox" id="panelEnabled"> 주문 페이지에 도우미 패널 띄우기
+    </label>
+    <h1>BICO 언어 고정</h1>
+    <label>
+      <input type="checkbox" id="bicoEnabled"> 언어가 바뀌면 자동으로 되돌리기
+    </label>
+    <label>
+      언어 코드
+      <input type="text" id="bicoLocale" list="bicoLocales" placeholder="예: ko">
+      <datalist id="bicoLocales">
+      <option value="en"></option>
+      <option value="es"></option>
+      <option value="ja"></option>
+      <option value="ko"></option>
+      <option value="zh"></option>
+      </datalist>
+      <div class="hint">BICO의 locale 쿠키 값과 같아야 합니다 (영어는 en).</div>
+    </label>
+  </section>
+  <button id="save">저장</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
