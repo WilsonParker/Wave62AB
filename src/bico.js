@@ -6,8 +6,11 @@
   };
   (document.head || document.documentElement).appendChild(script);
 
+  // Our own `locale` cookie scoped to COOKIE_PATH shadows the shared root (path /) cookie that
+  // ALMA and the server also write (see docs/adr/0001-per-app-locale-cookie.md).
+  const COOKIE_PATH = '/bico';
   const LANG_GUARD_KEY = '__bico_lang_guard';
-  const LANG_MAX_TRIES = 2;
+  const LANG_MAX_TRIES = 1;
   const LANG_WINDOW_MS = 60000;
 
   function getLocaleCookie() {
@@ -26,25 +29,40 @@
     return true;
   }
 
-  let enforcing = false;
+  // True while the app bundle has not run yet, so the new cookie is picked up without a reload.
+  function appNotStarted() {
+    if (document.readyState !== 'loading') return false;
+    return !Array.from(document.scripts).some(s => s.src && !s.defer && !s.async && s.type !== 'module');
+  }
+
+  function writeLocaleCookie(value, maxAge) {
+    document.cookie = 'locale=' + encodeURIComponent(value) + '; path=' + COOKIE_PATH +
+      '; max-age=' + maxAge + '; secure; samesite=lax';
+  }
+
   let langTimer = null;
+  let langFirstRun = true;
   function enforceLanguage() {
     if (!chrome.runtime || !chrome.runtime.id) {
       clearInterval(langTimer);
       return;
     }
-    if (enforcing) return;
     chrome.storage.sync.get({ bicoLocale: 'ko', bicoEnabled: true }, function (s) {
       const desired = (s.bicoLocale || '').trim();
-      if (!s.bicoEnabled || !desired) return;
+      const wasFirstRun = langFirstRun;
+      langFirstRun = false;
+      if (!s.bicoEnabled || !desired) {
+        // Drop our pinned cookie so the app's own language choice applies again.
+        if (wasFirstRun) writeLocaleCookie('', 0);
+        return;
+      }
       const current = getLocaleCookie();
-      if (current === null || current.toLowerCase() === desired.toLowerCase()) return;
-      if (!langGuardAllows()) return;
-      enforcing = true;
-      chrome.runtime.sendMessage({ type: 'setLocale', locale: desired }, function (res) {
-        if (res && res.ok) location.reload();
-        else enforcing = false;
-      });
+      const ok = current !== null && current.toLowerCase() === desired.toLowerCase();
+      // A matching value may come from the root cookie: write ours once per page load anyway.
+      if (ok && !wasFirstRun) return;
+      const beforeApp = appNotStarted();
+      writeLocaleCookie(desired, 31536000);
+      if (!ok && !beforeApp && langGuardAllows()) location.reload();
     });
   }
 

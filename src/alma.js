@@ -1,9 +1,13 @@
 (function () {
-  // ALMA (AMIGA) reads the shared `locale` cookie (path /, not httpOnly) and matches it with
-  // BCP47 "lookup" against region locales (ko-KR, en-GB, ...), so a bare "ko" is ignored.
+  // ALMA (AMIGA) reads the `locale` cookie (not httpOnly) and matches it with BCP47 "lookup"
+  // against region locales (ko-KR, en-GB, ...), so a bare "ko" is ignored.
+  // We pin our own cookie at COOKIE_PATH instead of rewriting the shared root (path /) cookie that
+  // BICO and the server also write: a longer path is sent and listed first, so ours wins and the
+  // apps no longer overwrite each other (see docs/adr/0001-per-app-locale-cookie.md).
   const LOCALE_ALIASES = { ko: 'ko-KR', en: 'en-GB', es: 'es-ES', ja: 'ja-JP', zh: 'zh-CN' };
+  const COOKIE_PATH = '/almafeshll';
   const LANG_GUARD_KEY = '__alma_lang_guard';
-  const LANG_MAX_TRIES = 2;
+  const LANG_MAX_TRIES = 1;
   const LANG_WINDOW_MS = 60000;
   const CHECK_MS = 2000;
 
@@ -29,7 +33,11 @@
     return !Array.from(document.scripts).some(s => s.src && !s.defer && !s.async && s.type !== 'module');
   }
 
-  const isKorean = v => /^ko(-|$)/i.test(v || '');
+  function writeLocaleCookie(value, maxAge) {
+    document.cookie = 'locale=' + encodeURIComponent(value) + '; path=' + COOKIE_PATH +
+      '; max-age=' + maxAge + '; secure; samesite=lax';
+  }
+
   let timer = null;
   let firstRun = true;
 
@@ -41,22 +49,21 @@
     chrome.storage.sync.get({ almaLocale: 'ko-KR', almaEnabled: true }, function (s) {
       const raw = (s.almaLocale || '').trim();
       const desired = LOCALE_ALIASES[raw.toLowerCase()] || raw;
-      if (!s.almaEnabled || !desired) return;
-      const cookie = getLocaleCookie();
-      const pageLang = document.documentElement.lang;
-      const wantsKorean = isKorean(desired);
-      // First run: the app ignores a bare "ko", so require the exact value. Afterwards accept
-      // any ko* cookie (the BICO script writes "ko") to avoid fighting it, but still fix a
-      // page whose rendered language is not Korean.
-      const cookieOk = firstRun
-        ? cookie !== null && cookie.toLowerCase() === desired.toLowerCase()
-        : (wantsKorean ? isKorean(cookie) : cookie !== null && cookie.toLowerCase() === desired.toLowerCase());
-      const pageOk = !wantsKorean || !pageLang || isKorean(pageLang);
+      const wasFirstRun = firstRun;
       firstRun = false;
-      if (cookieOk && pageOk) return;
+      if (!s.almaEnabled || !desired) {
+        // Drop our pinned cookie so the app's own language choice applies again.
+        if (wasFirstRun) writeLocaleCookie('', 0);
+        return;
+      }
+      const cookie = getLocaleCookie();
+      const ok = cookie !== null && cookie.toLowerCase() === desired.toLowerCase();
+      // document.cookie cannot show paths, so a matching value may still come from the root
+      // cookie: (re)write ours once per page load so it is in place before anyone changes the root.
+      if (ok && !wasFirstRun) return;
       const beforeApp = appNotStarted();
-      document.cookie = 'locale=' + encodeURIComponent(desired) + '; path=/; max-age=31536000; secure; samesite=lax';
-      if (!beforeApp && langGuardAllows()) location.reload();
+      writeLocaleCookie(desired, 31536000);
+      if (!ok && !beforeApp && langGuardAllows()) location.reload();
     });
   }
 

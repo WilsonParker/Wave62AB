@@ -1,35 +1,23 @@
-const BICO_URL = 'https://apps.inditex.com/';
+// DEBUG (temporary): records every change to an Inditex `locale` cookie, to find what keeps
+// rewriting the language. Remove once the cause is known.
+// Read it from the service-worker console (chrome://extensions -> "service worker"):
+//   chrome.storage.local.get('localeLog', r => console.table(r.localeLog))
+// Our own writes use path /almafeshll or /bico; anything on path / comes from the apps or server.
+const LOG_KEY = 'localeLog';
+const LOG_MAX = 200;
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg && msg.type === 'setLocale') {
-    setLocaleCookie(msg.locale).then(
-      () => sendResponse({ ok: true }),
-      err => sendResponse({ ok: false, error: String(err) })
-    );
-    return true;
-  }
-  return false;
+chrome.cookies.onChanged.addListener(({ removed, cookie, cause }) => {
+  if (cookie.name !== 'locale' || !cookie.domain.endsWith('inditex.com')) return;
+  const entry = {
+    at: new Date().toISOString(),
+    value: cookie.value,
+    domain: cookie.domain,
+    path: cookie.path,
+    removed,
+    cause,
+  };
+  console.log('[locale]', entry);
+  chrome.storage.local.get({ [LOG_KEY]: [] }, r => {
+    chrome.storage.local.set({ [LOG_KEY]: r[LOG_KEY].concat(entry).slice(-LOG_MAX) });
+  });
 });
-
-async function setLocaleCookie(locale) {
-  const existing = await chrome.cookies.getAll({ url: BICO_URL, name: 'locale' });
-  if (existing.length === 0) {
-    await chrome.cookies.set({ url: BICO_URL, name: 'locale', value: locale, path: '/' });
-    return;
-  }
-  for (const c of existing) {
-    const host = c.domain.startsWith('.') ? c.domain.slice(1) : c.domain;
-    const details = {
-      url: `https://${host}${c.path}`,
-      name: c.name,
-      value: locale,
-      path: c.path,
-      secure: c.secure,
-      httpOnly: c.httpOnly,
-      sameSite: c.sameSite,
-    };
-    if (!c.hostOnly) details.domain = c.domain;
-    if (c.expirationDate) details.expirationDate = c.expirationDate;
-    await chrome.cookies.set(details);
-  }
-}
